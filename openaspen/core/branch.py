@@ -58,7 +58,9 @@ class Branch(TreeNode):
         if rag_db and llm_router:
             relevant_leaves = await self._find_relevant_leaves(input_data, rag_db)
             if relevant_leaves:
-                return await self._execute_with_llm(input_data, relevant_leaves, llm_router, **kwargs)
+                # Remove rag_db and llm_router from kwargs to avoid duplicate arguments
+                filtered_kwargs = {k: v for k, v in kwargs.items() if k not in ["rag_db", "llm_router"]}
+                return await self._execute_with_llm(input_data, relevant_leaves, llm_router, **filtered_kwargs)
 
         if self.children:
             results = []

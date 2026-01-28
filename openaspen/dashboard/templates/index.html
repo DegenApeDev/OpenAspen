@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block page_title %}Dashboard{% endblock %}
+{% block page_subtitle %}System Overview{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Status Cards -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600">Tree Status</p>
+                <p class="text-2xl font-bold text-gray-800" id="tree-status">Active</p>
+            </div>
+            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-tree text-green-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600">CPU Usage</p>
+                <p class="text-2xl font-bold text-gray-800" id="cpu-usage">--</p>
+            </div>
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-microchip text-blue-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600">Memory Usage</p>
+                <p class="text-2xl font-bold text-gray-800" id="memory-usage">--</p>
+            </div>
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-memory text-purple-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-600">Tasks Today</p>
+                <p class="text-2xl font-bold text-gray-800" id="tasks-count">0</p>
+            </div>
+            <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <i class="fas fa-tasks text-yellow-600 text-xl"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+    <!-- Quick Execute -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-bolt text-yellow-500 mr-2"></i>
+            Quick Execute
+        </h3>
+        <form id="quick-execute-form">
+            <div class="mb-4">
+                <input type="text" id="quick-task" 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       placeholder="Enter task... (e.g., Check BTC price)">
+            </div>
+            <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                <i class="fas fa-play mr-2"></i>
+                Execute Task
+            </button>
+        </form>
+        <div id="quick-result" class="mt-4 hidden">
+            <div class="bg-gray-50 rounded-lg p-4">
+                <p class="text-sm text-gray-600 mb-2">Result:</p>
+                <p id="quick-result-text" class="text-sm text-gray-800"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Tasks -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-history text-blue-500 mr-2"></i>
+            Recent Tasks
+        </h3>
+        <div id="recent-tasks" class="space-y-3">
+            <p class="text-sm text-gray-500">No recent tasks</p>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- System Resources Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-chart-area text-green-500 mr-2"></i>
+            System Resources
+        </h3>
+        <canvas id="resources-chart"></canvas>
+    </div>
+    
+    <!-- LLM Providers -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-robot text-purple-500 mr-2"></i>
+            LLM Providers
+        </h3>
+        <div id="llm-providers" class="space-y-3">
+            <p class="text-sm text-gray-500">Loading...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Quick execute form
+    document.getElementById('quick-execute-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const task = document.getElementById('quick-task').value;
+        
+        if (!task) return;
+        
+        try {
+            const response = await fetch('/api/execute', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({task})
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('quick-result').classList.remove('hidden');
+                document.getElementById('quick-result-text').textContent = data.result;
+                showToast('Task executed successfully', 'success');
+                loadRecentTasks();
+            } else {
+                showToast(data.error || 'Task failed', 'error');
+            }
+        } catch (error) {
+            showToast('Error executing task', 'error');
+        }
+    });
+    
+    // Load system status
+    async function loadSystemStatus() {
+        try {
+            const response = await fetch('/api/system-status');
+            const data = await response.json();
+            
+            document.getElementById('cpu-usage').textContent = data.cpu.usage_percent.toFixed(1) + '%';
+            document.getElementById('memory-usage').textContent = data.memory.percent_used.toFixed(1) + '%';
+            
+            updateResourcesChart(data.cpu.usage_percent, data.memory.percent_used);
+        } catch (error) {
+            console.error('Error loading system status:', error);
+        }
+    }
+    
+    // Load recent tasks
+    async function loadRecentTasks() {
+        try {
+            const response = await fetch('/api/task-history?limit=5');
+            const data = await response.json();
+            
+            const container = document.getElementById('recent-tasks');
+            
+            if (data.tasks.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500">No recent tasks</p>';
+                return;
+            }
+            
+            container.innerHTML = data.tasks.map(task => `
+                <div class="border-l-4 ${task.status === 'success' ? 'border-green-500' : 'border-red-500'} pl-3">
+                    <p class="text-sm font-medium text-gray-800">${task.task}</p>
+                    <p class="text-xs text-gray-500">${new Date(task.timestamp).toLocaleString()}</p>
+                </div>
+            `).join('');
+            
+            document.getElementById('tasks-count').textContent = data.total;
+        } catch (error) {
+            console.error('Error loading tasks:', error);
+        }
+    }
+    
+    // Load LLM providers
+    async function loadLLMProviders() {
+        try {
+            const response = await fetch('/api/llm-providers');
+            const data = await response.json();
+            
+            const container = document.getElementById('llm-providers');
+            
+            if (data.providers.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500">No providers configured</p>';
+                return;
+            }
+            
+            container.innerHTML = data.providers.map(provider => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <p class="text-sm font-medium text-gray-800">${provider.name}</p>
+                        <p class="text-xs text-gray-500">${provider.model}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-gray-600">Speed: ${provider.speed_score}</p>
+                        <p class="text-xs text-gray-600">$${provider.cost_per_1k}/1k</p>
+                    </div>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading providers:', error);
+        }
+    }
+    
+    // Resources chart
+    let resourcesChart;
+    function updateResourcesChart(cpu, memory) {
+        const ctx = document.getElementById('resources-chart').getContext('2d');
+        
+        if (resourcesChart) {
+            resourcesChart.destroy();
+        }
+        
+        resourcesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['CPU Usage', 'Memory Usage', 'Available'],
+                datasets: [{
+                    data: [cpu, memory, 100 - Math.max(cpu, memory)],
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#e5e7eb']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+    
+    // Initialize
+    loadSystemStatus();
+    loadRecentTasks();
+    loadLLMProviders();
+    
+    // Auto-refresh every 5 seconds
+    setInterval(loadSystemStatus, 5000);
+    setInterval(loadRecentTasks, 10000);
+</script>
+{% endblock %}

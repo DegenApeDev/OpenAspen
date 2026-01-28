@@ -1,5 +1,4 @@
 from typing import List, Dict, Any, Optional
-from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from openaspen.rag.embeddings import EmbeddingManager
 from openaspen.core.leaf import Leaf
@@ -12,29 +11,25 @@ logger = logging.getLogger(__name__)
 class GroupRAGStore:
     def __init__(
         self,
-        persist_directory: str = "./chroma_db",
+        persist_directory: str = "./vector_db",
         embedding_manager: Optional[EmbeddingManager] = None,
+        use_faiss: bool = True,
     ):
         self.persist_directory = persist_directory
-        self.embedding_manager = embedding_manager or EmbeddingManager()
-        self._vectorstore: Optional[Chroma] = None
+        self.embedding_manager = embedding_manager or EmbeddingManager(provider="fake")
+        self._vectorstore: Optional[Any] = None
+        self.use_faiss = use_faiss
         self._initialize_store()
 
     def _initialize_store(self) -> None:
-        try:
-            self._vectorstore = Chroma(
-                persist_directory=self.persist_directory,
-                embedding_function=self.embedding_manager.get_embeddings(),
-            )
-            logger.info(f"Initialized ChromaDB at {self.persist_directory}")
-        except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB: {e}")
-            raise
+        # Don't initialize FAISS until we have documents (can't create from empty list)
+        # Will be initialized on first document add
+        self._vectorstore = None
+        self._documents = []
+        self._initialized = False
+        logger.info(f"Vector store ready (will initialize on first document)")
 
     async def index_leaf(self, leaf: Leaf, branch_name: str) -> None:
-        if self._vectorstore is None:
-            raise ValueError("Vector store not initialized")
-
         text = leaf.get_embedding_text()
         metadata = {
             "leaf_name": leaf.name,
@@ -45,7 +40,35 @@ class GroupRAGStore:
         }
 
         doc = Document(page_content=text, metadata=metadata)
-        await self._vectorstore.aadd_documents([doc])
+        self._documents.append(doc)
+        
+        # Initialize FAISS on first document if not already initialized
+        if not self._initialized:
+            try:
+                if self.use_faiss:
+                    from langchain_community.vectorstores import FAISS
+                    self._vectorstore = FAISS.from_documents(
+                        self._documents,
+                        embedding=self.embedding_manager.get_embeddings(),
+                    )
+                    self._initialized = True
+                    logger.info(f"Initialized FAISS vector store with {len(self._documents)} documents")
+                else:
+                    from langchain_community.vectorstores import Chroma
+                    self._vectorstore = Chroma(
+                        persist_directory=self.persist_directory,
+                        embedding_function=self.embedding_manager.get_embeddings(),
+                    )
+                    await self._vectorstore.aadd_documents(self._documents)
+                    self._initialized = True
+                    logger.info(f"Initialized ChromaDB at {self.persist_directory}")
+            except Exception as e:
+                logger.warning(f"Failed to initialize vector store: {e}. Continuing without RAG.")
+                self._vectorstore = None
+        elif self._vectorstore is not None:
+            # Add to existing vectorstore
+            await self._vectorstore.aadd_documents([doc])
+        
         logger.debug(f"Indexed leaf: {leaf.name} in branch: {branch_name}")
 
     async def index_branch(self, branch: Branch) -> None:

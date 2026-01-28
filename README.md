@@ -11,8 +11,10 @@ OpenAspen is a modular, production-ready framework that structures AI agents lik
 ## ✨ Features
 
 - 🌳 **Tree-Structured Architecture**: Hierarchical agent organization with branches (agents) and leaves (skills)
-- 🤖 **Multi-LLM Support**: OpenAI, Anthropic, Grok, Ollama, LM Studio with intelligent routing
+- 💰 **Zero API Keys Required**: Works completely FREE with LM Studio (local LLM)
+- 🤖 **Multi-LLM Support**: LM Studio (default), Grok (primary cloud), OpenAI/Anthropic (optional)
 - 🧠 **Group RAG**: Shared vector database across all agents for cross-context awareness
+- 🔧 **LangChain Hub Integration**: 100+ pre-built tools (search, APIs, DBs) as instant skills—no coding required
 - ⚡ **Async-First**: Built on asyncio for high-performance concurrent execution
 - 🎯 **Smart Routing**: Route by cost, speed, or skill type automatically
 - 🔌 **OpenAI-Compatible API**: Drop-in replacement for OpenAI API endpoints
@@ -21,54 +23,117 @@ OpenAspen is a modular, production-ready framework that structures AI agents lik
 
 ## 🚀 Quick Start
 
-### Installation
+### Installation (Zero API Keys Required!)
 
 ```bash
-# Using Poetry (recommended)
-poetry add openaspen
+# Clone the repository
+git clone https://github.com/yourusername/openaspen.git
+cd openaspen
 
-# Using pip
-pip install openaspen
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate.fish  # or: source venv/bin/activate
+
+# Install core (no API keys needed)
+pip install -e . --no-deps
+pip install langchain langgraph langchain-community faiss-cpu \
+    pydantic pydantic-settings fastapi uvicorn[standard] \
+    click python-dotenv aiohttp psutil flask flask-socketio
+
+# Install LangChain Hub tools (no API keys)
+pip install duckduckgo-search wikipedia
+
+# Install LM Studio for FREE local LLM
+# Download from: https://lmstudio.ai/
 ```
 
-### Build Your First Tree in 5 Lines
+### Build Your First Tree in 5 Lines (Zero API Keys!)
 
 ```python
 import asyncio
 from openaspen import OpenAspenTree
 from openaspen.llm.providers import create_llm_config
-
-async def fetch_price(crypto: str) -> dict:
-    return {"crypto": crypto, "price": 42000}
+from openaspen.integrations.langchain_hub import LangChainHubLoader
 
 async def main():
-    # 1. Configure LLMs
+    # 1. Configure LM Studio (FREE - no API key!)
     llm_configs = {
-        "openai": create_llm_config(provider="openai", api_key="your-key"),
-        "ollama": create_llm_config(provider="ollama"),  # Free local LLM
+        "lmstudio": create_llm_config(
+            provider="ollama",
+            api_base="http://localhost:1234/v1",
+            api_key="not-needed"
+        ),
     }
     
     # 2. Create tree
-    tree = OpenAspenTree(llm_configs=llm_configs, name="CryptoTree")
+    tree = OpenAspenTree(llm_configs=llm_configs, name="LocalTree")
     
     # 3. Grow a branch (agent)
-    crypto_branch = tree.grow_branch(
-        "crypto_analyzer",
-        description="Cryptocurrency analysis",
-        llm_provider="openai"
+    research = tree.add_branch(
+        "research",
+        description="Research assistant",
+        llm_provider="lmstudio"
     )
     
-    # 4. Spawn leaves (skills)
-    await tree.spawn_leaf(crypto_branch, "price_check", fetch_price, 
-                         "Fetch crypto prices")
+    # 4. Add LangChain Hub tool (no coding!)
+    await LangChainHubLoader.add_hub_tool_to_branch(
+        research, "duckduckgo_search", "web_search", rag_db=tree.shared_rag_db
+    )
     
     # 5. Execute queries
-    await tree.index_tree()
-    result = await tree.execute("What's the Bitcoin price?")
+    result = await tree.execute("What is Python?")
     print(result)
 
 asyncio.run(main())
 ```
+
+**Prerequisites**: Install and start LM Studio from [lmstudio.ai](https://lmstudio.ai/)
+
+### 🚀 LangChain Hub: Instant Skills in 2 Minutes
+
+Skip building basics—load 100+ pre-built tools from LangChain Hub:
+
+```python
+import asyncio
+from openaspen import OpenAspenTree
+from openaspen.llm.providers import create_llm_config
+from openaspen.integrations.langchain_hub import LangChainHubLoader
+
+async def main():
+    llm_configs = {"openai": create_llm_config(provider="openai")}
+    tree = OpenAspenTree(name="degen_tree", llm_configs=llm_configs)
+    
+    # Add crypto intelligence branch
+    crypto = tree.add_branch("crypto_intel", llm_provider="openai")
+    
+    # Load pre-built tools as leaves (no coding!)
+    await LangChainHubLoader.add_hub_tool_to_branch(
+        crypto, "duckduckgo_search", "market_search", rag_db=tree.shared_rag_db
+    )
+    await LangChainHubLoader.add_hub_tool_to_branch(
+        crypto, "yahoo_finance_news", "finance_news", rag_db=tree.shared_rag_db
+    )
+    
+    # Mix with custom leaves for specialized logic
+    async def coingecko_price(symbol: str, **kwargs):
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol}&vs_currencies=usd"
+            async with session.get(url) as resp:
+                return await resp.json()
+    
+    await tree.spawn_leaf(crypto, "coingecko_price", coingecko_price, "Get crypto prices")
+    
+    # Query the tree
+    result = await tree.execute("What's the latest Bitcoin news?")
+    print(result)
+
+asyncio.run(main())
+```
+
+**Available Hub Tools**: `duckduckgo_search`, `tavily_search`, `wikipedia`, `reddit_search`, `youtube_search`, `yahoo_finance_news`, `requests_get`, `python_repl`, `arxiv`, and more!
+
+📚 **See**: [`docs/QUICKSTART_LANGCHAIN_HUB.md`](docs/QUICKSTART_LANGCHAIN_HUB.md) | [`docs/LANGCHAIN_HUB_INTEGRATION.md`](docs/LANGCHAIN_HUB_INTEGRATION.md)
 
 ## 🏗️ Architecture
 
@@ -102,29 +167,40 @@ asyncio.run(main())
 
 ### Multi-LLM Configuration
 
+**Priority: LM Studio (free) → Grok (fast cloud) → OpenAI/Anthropic (optional)**
+
 ```python
 from openaspen.llm.providers import create_llm_config
+import os
 
 llm_configs = {
+    # LM Studio - FREE local LLM (default, no API key)
+    "lmstudio": create_llm_config(
+        provider="ollama",
+        api_base="http://localhost:1234/v1",
+        api_key="not-needed"
+    ),
+    
+    # Grok - Primary cloud option (fast, affordable)
+    "grok": create_llm_config(
+        provider="openai",  # Grok uses OpenAI-compatible API
+        model="grok-beta",
+        api_key=os.getenv("GROK_API_KEY"),
+        api_base="https://api.x.ai/v1"
+    ),
+    
+    # OpenAI - Optional premium (if you have API key)
     "openai": create_llm_config(
         provider="openai",
         model="gpt-4-turbo-preview",
-        api_key="sk-..."
+        api_key=os.getenv("OPENAI_API_KEY")
     ),
+    
+    # Anthropic - Optional premium (if you have API key)
     "anthropic": create_llm_config(
         provider="anthropic",
         model="claude-3-opus-20240229",
-        api_key="sk-ant-..."
-    ),
-    "grok": create_llm_config(
-        provider="grok",
-        model="grok-1",
-        api_key="xai-..."
-    ),
-    "ollama": create_llm_config(
-        provider="ollama",
-        model="llama2",
-        api_base="http://localhost:11434"
+        api_key=os.getenv("ANTHROPIC_API_KEY")
     ),
 }
 ```
@@ -203,6 +279,13 @@ openaspen visualize tree.json
 
 # Get tree information
 openaspen info tree.json
+
+# LangChain Hub: List available tools
+openaspen grow_leaf --list-tools
+
+# LangChain Hub: Add pre-built tools as leaves
+openaspen grow_leaf crypto_branch duckduckgo_search --hub --config tree.json
+openaspen grow_leaf research_branch wikipedia --hub --config tree.json --leaf-name wiki_search
 ```
 
 ## 🌐 API Server
@@ -268,15 +351,25 @@ openaspen/
 │   ├── rag/
 │   │   ├── embeddings.py    # Embedding management
 │   │   └── store.py         # GroupRAG vector store
+│   ├── integrations/
+│   │   ├── langchain_hub.py # LangChain Hub tool loader
+│   │   ├── telegram.py      # Telegram bot integration
+│   │   └── whatsapp.py      # WhatsApp integration
 │   ├── server/
 │   │   └── api.py           # FastAPI server
 │   └── cli.py               # CLI interface
 ├── examples/
 │   ├── basic_tree.py        # Simple example
 │   ├── advanced_tree.py     # Complex multi-agent example
+│   ├── langchain_hub_example.py  # LangChain Hub examples
+│   ├── degen_quickstart.py  # DEGEN crypto tree quickstart
 │   ├── server_example.py    # API server example
 │   └── tree.json            # Example tree config
 ├── tests/                   # Comprehensive test suite
+│   └── test_langchain_hub.py  # LangChain Hub tests
+├── docs/
+│   ├── LANGCHAIN_HUB_INTEGRATION.md  # Full Hub docs
+│   └── QUICKSTART_LANGCHAIN_HUB.md   # 2-min quickstart
 ├── pyproject.toml           # Poetry dependencies
 └── README.md
 ```
@@ -353,13 +446,14 @@ poetry run pytest
 
 ## 🗺️ Roadmap
 
+- [x] **LangChain Hub integration** - 100+ pre-built tools as instant skills
 - [ ] FAISS vector store support (alternative to ChromaDB)
 - [ ] LangGraph integration for complex agent workflows
 - [ ] Streaming responses for real-time output
 - [ ] Agent memory and conversation history
 - [ ] Web UI for tree visualization and management
 - [ ] More LLM providers (Cohere, AI21, etc.)
-- [ ] Tool calling / function calling support
+- [ ] Enhanced tool calling / function calling support
 - [ ] Distributed execution across multiple machines
 
 ## 📄 License

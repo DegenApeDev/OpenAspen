@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block page_title %}System Monitor{% endblock %}
+{% block page_subtitle %}Real-time system performance{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <!-- System Metrics -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">CPU Usage</span>
+            <i class="fas fa-microchip text-blue-500"></i>
+        </div>
+        <p class="text-3xl font-bold text-gray-800" id="cpu-metric">--</p>
+        <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div id="cpu-bar" class="h-full bg-blue-500 transition-all duration-500" style="width: 0%"></div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Memory Usage</span>
+            <i class="fas fa-memory text-purple-500"></i>
+        </div>
+        <p class="text-3xl font-bold text-gray-800" id="memory-metric">--</p>
+        <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div id="memory-bar" class="h-full bg-purple-500 transition-all duration-500" style="width: 0%"></div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Disk Usage</span>
+            <i class="fas fa-hdd text-green-500"></i>
+        </div>
+        <p class="text-3xl font-bold text-gray-800" id="disk-metric">--</p>
+        <div class="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div id="disk-bar" class="h-full bg-green-500 transition-all duration-500" style="width: 0%"></div>
+        </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm text-gray-600">Uptime</span>
+            <i class="fas fa-clock text-yellow-500"></i>
+        </div>
+        <p class="text-3xl font-bold text-gray-800" id="uptime-metric">--</p>
+        <p class="text-xs text-gray-500 mt-2">hours</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- CPU Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-chart-line text-blue-500 mr-2"></i>
+            CPU Usage History
+        </h3>
+        <canvas id="cpu-chart"></canvas>
+    </div>
+    
+    <!-- Memory Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-chart-area text-purple-500 mr-2"></i>
+            Memory Usage History
+        </h3>
+        <canvas id="memory-chart"></canvas>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- System Info -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-server text-gray-500 mr-2"></i>
+            System Information
+        </h3>
+        <div id="system-info" class="space-y-3">
+            <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-sm text-gray-600">Hostname</span>
+                <span class="text-sm font-medium text-gray-800" id="hostname">--</span>
+            </div>
+            <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-sm text-gray-600">OS</span>
+                <span class="text-sm font-medium text-gray-800" id="os">--</span>
+            </div>
+            <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-sm text-gray-600">Architecture</span>
+                <span class="text-sm font-medium text-gray-800" id="arch">--</span>
+            </div>
+            <div class="flex justify-between py-2 border-b border-gray-100">
+                <span class="text-sm text-gray-600">CPU Cores</span>
+                <span class="text-sm font-medium text-gray-800" id="cpu-cores">--</span>
+            </div>
+            <div class="flex justify-between py-2">
+                <span class="text-sm text-gray-600">Total Memory</span>
+                <span class="text-sm font-medium text-gray-800" id="total-memory">--</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Processes -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+            <i class="fas fa-list text-orange-500 mr-2"></i>
+            Top Processes
+        </h3>
+        <div id="top-processes" class="space-y-2">
+            <p class="text-sm text-gray-500">Loading...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let cpuChart, memoryChart;
+    let cpuHistory = [];
+    let memoryHistory = [];
+    const maxDataPoints = 20;
+    
+    async function updateSystemMetrics() {
+        try {
+            const response = await fetch('/api/system-status');
+            const data = await response.json();
+            
+            // Update metrics
+            document.getElementById('cpu-metric').textContent = data.cpu.usage_percent.toFixed(1) + '%';
+            document.getElementById('memory-metric').textContent = data.memory.percent_used.toFixed(1) + '%';
+            document.getElementById('uptime-metric').textContent = data.system.uptime_hours.toFixed(1);
+            
+            // Update progress bars
+            document.getElementById('cpu-bar').style.width = data.cpu.usage_percent + '%';
+            document.getElementById('memory-bar').style.width = data.memory.percent_used + '%';
+            
+            // Update disk (first partition)
+            if (data.disk.partitions && data.disk.partitions.length > 0) {
+                const mainDisk = data.disk.partitions[0];
+                document.getElementById('disk-metric').textContent = mainDisk.percent_used.toFixed(1) + '%';
+                document.getElementById('disk-bar').style.width = mainDisk.percent_used + '%';
+            }
+            
+            // Update system info
+            document.getElementById('hostname').textContent = data.system.hostname;
+            document.getElementById('os').textContent = data.system.os + ' ' + data.system.os_version;
+            document.getElementById('arch').textContent = data.system.architecture;
+            document.getElementById('cpu-cores').textContent = data.cpu.count_logical;
+            document.getElementById('total-memory').textContent = data.memory.total_gb + ' GB';
+            
+            // Update history
+            cpuHistory.push(data.cpu.usage_percent);
+            memoryHistory.push(data.memory.percent_used);
+            
+            if (cpuHistory.length > maxDataPoints) {
+                cpuHistory.shift();
+                memoryHistory.shift();
+            }
+            
+            updateCharts();
+            
+        } catch (error) {
+            console.error('Error updating metrics:', error);
+        }
+    }
+    
+    function updateCharts() {
+        const labels = Array.from({length: cpuHistory.length}, (_, i) => i);
+        
+        // CPU Chart
+        const cpuCtx = document.getElementById('cpu-chart').getContext('2d');
+        if (cpuChart) {
+            cpuChart.data.labels = labels;
+            cpuChart.data.datasets[0].data = cpuHistory;
+            cpuChart.update();
+        } else {
+            cpuChart = new Chart(cpuCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'CPU %',
+                        data: cpuHistory,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Memory Chart
+        const memCtx = document.getElementById('memory-chart').getContext('2d');
+        if (memoryChart) {
+            memoryChart.data.labels = labels;
+            memoryChart.data.datasets[0].data = memoryHistory;
+            memoryChart.update();
+        } else {
+            memoryChart = new Chart(memCtx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Memory %',
+                        data: memoryHistory,
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+    }
+    
+    // Initialize
+    updateSystemMetrics();
+    
+    // Auto-refresh every 2 seconds
+    setInterval(updateSystemMetrics, 2000);
+    
+    // WebSocket for real-time updates
+    socket.on('status_update', (data) => {
+        document.getElementById('cpu-metric').textContent = data.cpu.toFixed(1) + '%';
+        document.getElementById('memory-metric').textContent = data.memory.toFixed(1) + '%';
+    });
+</script>
+{% endblock %}

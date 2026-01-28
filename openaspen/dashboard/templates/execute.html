@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+
+{% block page_title %}Execute Task{% endblock %}
+{% block page_subtitle %}Run tasks through your agent tree{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Execute Panel -->
+    <div class="lg:col-span-2">
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-terminal text-blue-500 mr-2"></i>
+                Task Execution
+            </h3>
+            
+            <form id="execute-form">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Task Description</label>
+                    <textarea id="task-input" rows="4"
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder="Enter your task here...&#10;&#10;Examples:&#10;- Check BTC price and sentiment&#10;- Monitor whale wallets&#10;- Generate tweet thread about AI&#10;- Analyze system performance"></textarea>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <button type="submit" id="execute-btn"
+                            class="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                        <i class="fas fa-play mr-2"></i>
+                        Execute Task
+                    </button>
+                    <button type="button" onclick="clearTask()"
+                            class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+                        <i class="fas fa-times mr-2"></i>
+                        Clear
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Loading State -->
+            <div id="loading-state" class="hidden mt-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span class="text-blue-800">Processing task...</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Result Panel -->
+            <div id="result-panel" class="hidden mt-6">
+                <div class="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
+                    <div class="flex items-start justify-between mb-4">
+                        <h4 class="font-bold text-gray-800 flex items-center">
+                            <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                            Task Completed
+                        </h4>
+                        <span id="result-timestamp" class="text-xs text-gray-500"></span>
+                    </div>
+                    <div class="bg-white rounded-lg p-4">
+                        <pre id="result-text" class="text-sm text-gray-800 whitespace-pre-wrap font-mono"></pre>
+                    </div>
+                    <div class="mt-4 flex items-center space-x-2">
+                        <button onclick="copyResult()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
+                            <i class="fas fa-copy mr-2"></i>Copy Result
+                        </button>
+                        <button onclick="shareResult()" class="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition text-sm">
+                            <i class="fas fa-share mr-2"></i>Share
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Error Panel -->
+            <div id="error-panel" class="hidden mt-6">
+                <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                    <h4 class="font-bold text-red-800 flex items-center mb-2">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        Task Failed
+                    </h4>
+                    <p id="error-text" class="text-sm text-red-700"></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-bolt text-yellow-500 mr-2"></i>
+                Quick Actions
+            </h3>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="setTask('Check BTC price and sentiment')" class="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition">
+                    <i class="fas fa-bitcoin text-orange-500 mr-2"></i>
+                    <span class="text-sm font-medium">Crypto Check</span>
+                </button>
+                <button onclick="setTask('Monitor system performance')" class="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition">
+                    <i class="fas fa-chart-line text-green-500 mr-2"></i>
+                    <span class="text-sm font-medium">System Monitor</span>
+                </button>
+                <button onclick="setTask('Generate tweet thread about AI')" class="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition">
+                    <i class="fas fa-twitter text-blue-500 mr-2"></i>
+                    <span class="text-sm font-medium">Social Content</span>
+                </button>
+                <button onclick="setTask('Find trending crypto topics')" class="p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-left transition">
+                    <i class="fas fa-fire text-red-500 mr-2"></i>
+                    <span class="text-sm font-medium">Trending Topics</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="space-y-6">
+        <!-- Task History -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-history text-purple-500 mr-2"></i>
+                Recent Tasks
+            </h3>
+            <div id="task-history" class="space-y-3">
+                <p class="text-sm text-gray-500">No recent tasks</p>
+            </div>
+        </div>
+        
+        <!-- Tips -->
+        <div class="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg shadow p-6">
+            <h3 class="text-lg font-bold text-gray-800 mb-3 flex items-center">
+                <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                Tips
+            </h3>
+            <ul class="space-y-2 text-sm text-gray-700">
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                    <span>Be specific in your task descriptions</span>
+                </li>
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                    <span>Use natural language</span>
+                </li>
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                    <span>Tasks are processed by your agent tree</span>
+                </li>
+                <li class="flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                    <span>Results are saved in history</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentResult = '';
+    
+    document.getElementById('execute-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const task = document.getElementById('task-input').value.trim();
+        if (!task) {
+            showToast('Please enter a task', 'warning');
+            return;
+        }
+        
+        // Show loading state
+        document.getElementById('loading-state').classList.remove('hidden');
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('error-panel').classList.add('hidden');
+        document.getElementById('execute-btn').disabled = true;
+        
+        try {
+            const response = await fetch('/api/execute', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({task})
+            });
+            
+            const data = await response.json();
+            
+            // Hide loading
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('execute-btn').disabled = false;
+            
+            if (data.success) {
+                // Show result
+                currentResult = data.result;
+                document.getElementById('result-text').textContent = data.result;
+                document.getElementById('result-timestamp').textContent = new Date(data.timestamp).toLocaleString();
+                document.getElementById('result-panel').classList.remove('hidden');
+                showToast('Task completed successfully', 'success');
+                loadTaskHistory();
+            } else {
+                // Show error
+                document.getElementById('error-text').textContent = data.error;
+                document.getElementById('error-panel').classList.remove('hidden');
+                showToast('Task failed', 'error');
+            }
+        } catch (error) {
+            document.getElementById('loading-state').classList.add('hidden');
+            document.getElementById('execute-btn').disabled = false;
+            document.getElementById('error-text').textContent = error.message;
+            document.getElementById('error-panel').classList.remove('hidden');
+            showToast('Error executing task', 'error');
+        }
+    });
+    
+    function setTask(task) {
+        document.getElementById('task-input').value = task;
+    }
+    
+    function clearTask() {
+        document.getElementById('task-input').value = '';
+        document.getElementById('result-panel').classList.add('hidden');
+        document.getElementById('error-panel').classList.add('hidden');
+    }
+    
+    function copyResult() {
+        navigator.clipboard.writeText(currentResult);
+        showToast('Result copied to clipboard', 'success');
+    }
+    
+    function shareResult() {
+        // Implement sharing functionality
+        showToast('Share functionality coming soon', 'info');
+    }
+    
+    async function loadTaskHistory() {
+        try {
+            const response = await fetch('/api/task-history?limit=10');
+            const data = await response.json();
+            
+            const container = document.getElementById('task-history');
+            
+            if (data.tasks.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500">No recent tasks</p>';
+                return;
+            }
+            
+            container.innerHTML = data.tasks.map(task => `
+                <div class="border-l-4 ${task.status === 'success' ? 'border-green-500' : 'border-red-500'} pl-3 cursor-pointer hover:bg-gray-50 p-2 rounded transition"
+                     onclick="setTask('${task.task.replace(/'/g, "\\'")}')">
+                    <p class="text-sm font-medium text-gray-800 truncate">${task.task}</p>
+                    <p class="text-xs text-gray-500">${new Date(task.timestamp).toLocaleString()}</p>
+                </div>
+            `).join('');
+        } catch (error) {
+            console.error('Error loading task history:', error);
+        }
+    }
+    
+    // Load history on page load
+    loadTaskHistory();
+    
+    // Auto-refresh history every 30 seconds
+    setInterval(loadTaskHistory, 30000);
+</script>
+{% endblock %}

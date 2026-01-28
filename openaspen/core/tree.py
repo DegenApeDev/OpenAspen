@@ -19,13 +19,21 @@ class OpenAspenTree:
         shared_rag_db: Optional[GroupRAGStore] = None,
         embedding_manager: Optional[EmbeddingManager] = None,
         name: str = "OpenAspenTree",
+        use_embeddings: bool = True,
     ):
         self.name = name
         self.llm_router = LLMRouter(llm_configs)
-        self.embedding_manager = embedding_manager or EmbeddingManager()
-        self.shared_rag_db = shared_rag_db or GroupRAGStore(
-            embedding_manager=self.embedding_manager
-        )
+        
+        # Only create embedding manager if requested and not provided
+        if use_embeddings:
+            self.embedding_manager = embedding_manager or EmbeddingManager(provider="fake")
+            self.shared_rag_db = shared_rag_db or GroupRAGStore(
+                embedding_manager=self.embedding_manager
+            )
+        else:
+            self.embedding_manager = None
+            self.shared_rag_db = None
+            
         self.branches: List[Branch] = []
         self._execution_history: List[Dict[str, Any]] = []
 

@@ -114,5 +114,79 @@ def info(config_file: str) -> None:
         click.echo(f"    LLM: {branch.get('llm_provider', 'default')}")
 
 
+@main.command()
+@click.argument("branch_name")
+@click.argument("tool_name")
+@click.option("--hub", is_flag=True, help="Load tool from LangChain Hub")
+@click.option("--leaf-name", help="Custom name for the leaf (defaults to tool_name)")
+@click.option("--config", type=click.Path(exists=True), help="Tree config file to update")
+@click.option("--list-tools", is_flag=True, help="List available LangChain Hub tools")
+def grow_leaf(
+    branch_name: str, tool_name: str, hub: bool, leaf_name: str, config: str, list_tools: bool
+) -> None:
+    if list_tools:
+        from openaspen.integrations.langchain_hub import LangChainHubLoader
+
+        click.echo("🔧 Available LangChain Hub Tools:\n")
+        for name, info in LangChainHubLoader.AVAILABLE_TOOLS.items():
+            api_key_info = f" (requires {info['requires_api_key']})" if info["requires_api_key"] else ""
+            click.echo(f"  • {name}{api_key_info}")
+            click.echo(f"    {info['description']}")
+        return
+
+    if not hub:
+        click.echo("❌ Currently only --hub flag is supported for grow_leaf")
+        click.echo("💡 Use: openaspen grow_leaf <branch_name> <tool_name> --hub")
+        return
+
+    if not config:
+        click.echo("❌ --config flag is required to specify the tree configuration file")
+        return
+
+    asyncio.run(_grow_leaf_async(branch_name, tool_name, leaf_name, config))
+
+
+async def _grow_leaf_async(
+    branch_name: str, tool_name: str, leaf_name: str, config_file: str
+) -> None:
+    from openaspen.integrations.langchain_hub import LangChainHubLoader
+
+    config_data = json.loads(Path(config_file).read_text())
+
+    llm_configs = {}
+    for name, config in config_data.get("llm_providers", {}).items():
+        llm_configs[name] = create_llm_config(**config)
+
+    tree = OpenAspenTree.from_dict(config_data, llm_configs)
+
+    branch = None
+    for child in tree.children:
+        if child.name == branch_name:
+            branch = child
+            break
+
+    if not branch:
+        click.echo(f"❌ Branch '{branch_name}' not found in tree")
+        click.echo(f"Available branches: {[c.name for c in tree.children]}")
+        return
+
+    try:
+        leaf = await LangChainHubLoader.add_hub_tool_to_branch(
+            branch=branch,
+            tool_name=tool_name,
+            leaf_name=leaf_name,
+            rag_db=tree.shared_rag_db,
+        )
+
+        click.echo(f"✅ Added LangChain Hub tool '{tool_name}' as leaf '{leaf.name}'")
+        click.echo(f"🌿 Branch: {branch_name}")
+        click.echo(f"📝 Description: {leaf.description}")
+        click.echo(f"\n💡 Test with: openaspen run {config_file} -q 'your query'")
+
+    except Exception as e:
+        click.echo(f"❌ Failed to add leaf: {e}")
+        logger.error(f"Error adding leaf: {e}", exc_info=True)
+
+
 if __name__ == "__main__":
     main()

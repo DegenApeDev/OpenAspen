@@ -39,10 +39,10 @@ PROVIDER_DEFAULTS: Dict[str, Dict[str, Any]] = {
         "speed_score": 0.7,
     },
     "grok": {
-        "model": "grok-1",
+        "model": "grok-4-1-fast-reasoning",
         "api_base": "https://api.x.ai/v1",
         "cost_per_1k_tokens": 0.005,
-        "speed_score": 0.9,
+        "speed_score": 0.95,
     },
     "ollama": {
         "model": "llama2",

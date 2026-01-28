@@ -1,0 +1,42 @@
+{
+  "name": "DemoTree",
+  "branches": [
+    {
+      "name": "crypto_analyzer",
+      "description": "Cryptocurrency analysis and price tracking",
+      "llm_provider": "openai",
+      "system_prompt": "You are a crypto market analyst. Help users understand cryptocurrency prices and trends."
+    },
+    {
+      "name": "research_assistant",
+      "description": "Web research and information gathering",
+      "llm_provider": "openai",
+      "system_prompt": "You are a research assistant. Help users find and synthesize information."
+    },
+    {
+      "name": "dev_tools",
+      "description": "Development and code analysis tools",
+      "llm_provider": "openai",
+      "system_prompt": "You are a software development assistant. Help with code analysis and debugging."
+    }
+  ],
+  "llm_providers": {
+    "openai": {
+      "provider": "openai",
+      "model": "gpt-4-turbo-preview",
+      "temperature": 0.7,
+      "max_tokens": 2000
+    },
+    "anthropic": {
+      "provider": "anthropic",
+      "model": "claude-3-opus-20240229",
+      "temperature": 0.7,
+      "max_tokens": 2000
+    },
+    "ollama": {
+      "provider": "ollama",
+      "model": "llama2",
+      "api_base": "http://localhost:11434"
+    }
+  }
+}
